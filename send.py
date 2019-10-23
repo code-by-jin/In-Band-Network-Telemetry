@@ -36,10 +36,7 @@ class SwitchTrace(Packet):
                 return "", p
 
 class MRI(Packet):
-   fields_desc = [ FieldLenField("length", None, fmt="B",
-                                 length_of="swtraces",
-                                 adjust=lambda pkt,l:l*2+4),
-                   ShortField("count", 0),
+   fields_desc = [ ShortField("count", 0),
                    PacketListField("swtraces",
                                    [],
                                    SwitchTrace,
