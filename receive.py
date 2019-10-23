@@ -33,37 +33,35 @@ class SwitchTrace(Packet):
     def extract_padding(self, p):
                 return "", p
 
-class IPOption_MRI(IPOption):
-    name = "MRI"
-    option = 31
-    fields_desc = [ _IPOption_HDR,
-                    FieldLenField("length", None, fmt="B",
+class MRI(Packet):
+   fields_desc = [ FieldLenField("length", None, fmt="B",
                                   length_of="swtraces",
                                   adjust=lambda pkt,l:l*2+4),
-                    ShortField("count", 0),
-                    PacketListField("swtraces",
+                   ShortField("count", 0),
+                   PacketListField("swtraces",
                                    [],
                                    SwitchTrace,
-                                   count_from=lambda pkt:(pkt.count*1)) ]
+                                   count_from=lambda pkt:(pkt.count*1))]
 
-def record_int(pkt):
-    file_name = "int_data.csv"    
-    df = pd.DataFrame()
-    for i in range(len(pkt.options[0].swtraces)):
-        swid = str(pkt.options[0].swtraces[i].swid)
-        df[swid] = [pkt.options[0].swtraces[i].qlatency]
 
-    if os.path.exists(file_name):
-        df_exist = pd.read_csv(file_name)
-        df = pd.concat([df_exist, df])
+#def record_int(pkt):
+#    file_name = "int_data.csv"    
+#    df = pd.DataFrame()
+#    for i in range(len(pkt.options[0].swtraces)):
+#        swid = str(pkt.options[0].swtraces[i].swid)
+#        df[swid] = [pkt.options[0].swtraces[i].qlatency]
+#
+#    if os.path.exists(file_name):
+#        df_exist = pd.read_csv(file_name)
+#        df = pd.concat([df_exist, df])
+#
+#    df.to_csv (file_name, index = None, header=True)
 
-    df.to_csv (file_name, index = None, header=True)
-    print df
 
 def handle_pkt(pkt):
     print "got a packet"
     pkt.show2()
-    record_int(pkt)
+    #record_int(pkt)
     sys.stdout.flush()
 
 class SourceRoute(Packet):
@@ -75,12 +73,13 @@ class SourceRoutingTail(Packet):
 bind_layers(Ether, SourceRoute, type=0x1234)
 bind_layers(SourceRoute, SourceRoute, bos=0)
 bind_layers(SourceRoute, SourceRoutingTail, bos=1)
+bind_layers(SourceRoutingTail, MRI)
 
 def main():
     iface = 'eth0'
     print "sniffing on %s" % iface
     sys.stdout.flush()
-    sniff(filter="udp and port 4321", iface = iface,
+    sniff(filter="udp", iface = iface,
           prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':

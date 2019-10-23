@@ -6,7 +6,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 const bit<5>  IPV4_OPTION_MRI = 31;
 const bit<16> TYPE_SRCROUTING = 0x1234;
 
-#define MAX_HOPS 9
+#define MAX_HOPS 15
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -46,13 +46,6 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header ipv4_option_t {
-    bit<1> copyFlag;
-    bit<2> optClass;
-    bit<5> option;
-    bit<8> optionLength;
-}
-
 header mri_t {
     bit<16>  count;
 }
@@ -81,12 +74,10 @@ struct headers {
     ethernet_t              ethernet;
     srcRoute_t[MAX_HOPS]    srcRoutes;
     ipv4_t                  ipv4;
-    ipv4_option_t           ipv4_option;
     mri_t                   mri;
     switch_t[MAX_HOPS]      swtraces;
 }
 
-error { IPHeaderTooShort }
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -119,19 +110,7 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        verify(hdr.ipv4.ihl >= 5, error.IPHeaderTooShort);
-        transition select(hdr.ipv4.ihl) {
-            5             : accept;
-            default       : parse_ipv4_option;
-        }
-    }
-
-    state parse_ipv4_option {
-        packet.extract(hdr.ipv4_option);
-        transition select(hdr.ipv4_option.option) {
-            IPV4_OPTION_MRI: parse_mri;
-            default: accept;
-        }
+        transition parse_mri;   
     }
 
     state parse_mri {
@@ -219,7 +198,6 @@ control MyEgress(inout headers hdr,
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
 
         hdr.ipv4.ihl = hdr.ipv4.ihl + 4;
-        hdr.ipv4_option.optionLength = hdr.ipv4_option.optionLength + 16; 
 	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
     }
 
@@ -255,7 +233,6 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.srcRoutes);     
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.ipv4_option);
         packet.emit(hdr.mri);
         packet.emit(hdr.swtraces);     
     }

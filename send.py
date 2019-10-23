@@ -5,7 +5,7 @@ import sys
 import socket
 import random
 import struct
-
+import pandas as pd
 from scapy.all import sendp, send, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
 from scapy.all import Ether, IP, UDP
@@ -35,19 +35,15 @@ class SwitchTrace(Packet):
     def extract_padding(self, p):
                 return "", p
 
-class IPOption_MRI(IPOption):
-    name = "MRI"
-    option = 31
-    fields_desc = [ _IPOption_HDR,
-                    FieldLenField("length", None, fmt="B",
-                                  length_of="swtraces",
-                                  adjust=lambda pkt,l:l*2+4),
-                    ShortField("count", 0),
-                    PacketListField("swtraces",
+class MRI(Packet):
+   fields_desc = [ FieldLenField("length", None, fmt="B",
+                                 length_of="swtraces",
+                                 adjust=lambda pkt,l:l*2+4),
+                   ShortField("count", 0),
+                   PacketListField("swtraces",
                                    [],
                                    SwitchTrace,
-                                   count_from=lambda pkt:(pkt.count*1)) ]
-
+                                   count_from=lambda pkt:(pkt.count*1))]
 
 class SourceRoute(Packet):
    fields_desc = [ BitField("bos", 0, 1),
@@ -56,6 +52,7 @@ class SourceRoute(Packet):
 bind_layers(Ether, SourceRoute, type=0x1234)
 bind_layers(SourceRoute, SourceRoute, bos=0)
 bind_layers(SourceRoute, IP, bos=1)
+bind_layers(IP, MRI)
 
 def main():
 
@@ -67,9 +64,10 @@ def main():
     iface = get_if()
 
     while True:
+        #df = pd.read_csv('int_data.csv')
         print
         s = str(raw_input('Type space separated port nums '
-                          '(example: "2 3 2 2 1") or "q" to quit: '))
+                          '(example: "2 3 1") or "q" to quit: '))
         if s == "q":
             break;
         print
@@ -84,8 +82,8 @@ def main():
                 pass
         if pkt.haslayer(SourceRoute):
             pkt.getlayer(SourceRoute, i).bos = 1
-
-        pkt = pkt / IP(dst=addr, options = IPOption_MRI(count=0, swtraces=[])) / UDP(
+        pkt.show2()
+        pkt = pkt / IP(dst=addr) / MRI(count=0, swtraces=[]) /UDP(
                 dport=4321, sport=1234) / sys.argv[2]
 
         pkt.show2()
