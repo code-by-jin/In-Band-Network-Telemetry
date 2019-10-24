@@ -30,8 +30,8 @@ class SwitchTrace(Packet):
                   IntField("qdepth", 0),
                   IntField("qlatency", 0),
                   IntField("plength", 0)]
-    def extract_padding(self, p):
-                return "", p
+#    def extract_padding(self, p):
+#                return "", p
 
 class MRI(Packet):
    fields_desc = [ ShortField("count", 0),
@@ -57,6 +57,7 @@ class MRI(Packet):
 
 def handle_pkt(pkt):
     print "got a packet"
+    print pkt.count
     pkt.show2()
     #record_int(pkt)
     sys.stdout.flush()
@@ -64,19 +65,20 @@ def handle_pkt(pkt):
 class SourceRoute(Packet):
    fields_desc = [ BitField("bos", 0, 1),
                    BitField("port", 0, 15)]
-class SourceRoutingTail(Packet):
-   fields_desc = [ XShortField("etherType", 0x800)]
+#class SourceRoutingTail(Packet):
+#   fields_desc = [ XShortField("etherType", 0x800)]
 
 bind_layers(Ether, SourceRoute, type=0x1234)
 bind_layers(SourceRoute, SourceRoute, bos=0)
-bind_layers(SourceRoute, SourceRoutingTail, bos=1)
-bind_layers(SourceRoutingTail, MRI)
+bind_layers(SourceRoute, IP, bos=1)
+bind_layers(IP, UDP)
+bind_layers(UDP, MRI)
 
 def main():
     iface = 'eth0'
     print "sniffing on %s" % iface
     sys.stdout.flush()
-    sniff(filter="udp", iface = iface,
+    sniff(filter="udp and port 4321", iface = iface,
           prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':
