@@ -2,7 +2,7 @@
 import os
 import sys
 import struct
-import pandas as pd
+# import pandas as pd
 
 from scapy.all import sniff, sendp, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
