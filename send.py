@@ -5,7 +5,7 @@ import sys
 import socket
 import random
 import struct
-import pandas as pd
+# import pandas as pd
 from scapy.all import sendp, send, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
 from scapy.all import Ether, IP, UDP
@@ -49,7 +49,9 @@ class SourceRoute(Packet):
 bind_layers(Ether, SourceRoute, type=0x1234)
 bind_layers(SourceRoute, SourceRoute, bos=0)
 bind_layers(SourceRoute, IP, bos=1)
-bind_layers(IP, MRI)
+# bind_layers(IP, MRI)
+bind_layers(IP, UDP)
+bind_layers(UDP, MRI)
 
 def main():
 
@@ -80,8 +82,7 @@ def main():
         if pkt.haslayer(SourceRoute):
             pkt.getlayer(SourceRoute, i).bos = 1
         pkt.show2()
-        pkt = pkt / IP(dst=addr) / MRI(count=0, swtraces=[]) /UDP(
-                dport=4321, sport=1234) / sys.argv[2]
+        pkt = pkt / IP(dst=addr, proto=17) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / sys.argv[2]
 
         pkt.show2()
         sendp(pkt, iface=iface, verbose=False)

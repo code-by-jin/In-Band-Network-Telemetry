@@ -1,9 +1,9 @@
 #include <core.p4>
 #include <v1model.p4>
 
-const bit<8>  UDP_PROTOCOL = 0x11;
+// const bit<8>  UDP_PROTOCOL = 0x11;
 const bit<16> TYPE_IPV4 = 0x800;
-const bit<5>  IPV4_OPTION_MRI = 31;
+// const bit<5>  IPV4_OPTION_MRI = 31;
 const bit<16> TYPE_SRCROUTING = 0x1234;
 
 #define MAX_HOPS 15
@@ -46,6 +46,13 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header udp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<16> length_;
+    bit<16> checksum;
+}
+
 header mri_t {
     bit<16>  count;
 }
@@ -74,6 +81,7 @@ struct headers {
     ethernet_t              ethernet;
     srcRoute_t[MAX_HOPS]    srcRoutes;
     ipv4_t                  ipv4;
+    udp_t                   udp;
     mri_t                   mri;
     switch_t[MAX_HOPS]      swtraces;
 }
@@ -110,7 +118,12 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_mri;   
+        transition parse_udp;   
+    }
+
+    state parse_udp {
+        packet.extract(hdr.udp);
+        transition parse_mri;
     }
 
     state parse_mri {
@@ -188,30 +201,33 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    action add_swtrace(switchID_t swid) { 
+    // action add_swtrace(switchID_t swid) { 
+    action add_swtrace() { 
         hdr.mri.count = hdr.mri.count + 1;
         hdr.swtraces.push_front(1);
         hdr.swtraces[0].setValid();
-        hdr.swtraces[0].swid = swid;
+        // hdr.swtraces[0].swid = swid;
+        // you need *table entries* for you to pass swid into this action
+        hdr.swtraces[0].swid = 0x1234; 
         hdr.swtraces[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
         hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
 
-        hdr.ipv4.ihl = hdr.ipv4.ihl + 4;
-	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
+        // no longer needed, as you are not using the ip options
+        // hdr.ipv4.ihl = hdr.ipv4.ihl + 4;
+	    // hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
     }
 
-    table swtrace {
-        actions = { 
-	    add_swtrace; 
-	    NoAction; 
-        }
-        default_action = NoAction;      
-    }
+    // table swtrace {
+    //     actions = { 
+	//         add_swtrace; 
+    //     }      
+    // }
     
     apply {
         if (hdr.mri.isValid()) {
-            swtrace.apply();
+            // swtrace.apply();
+            add_swtrace();
         }
     }
 }
@@ -233,6 +249,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.srcRoutes);     
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.udp);
         packet.emit(hdr.mri);
         packet.emit(hdr.swtraces);     
     }
