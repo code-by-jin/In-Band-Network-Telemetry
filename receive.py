@@ -2,7 +2,6 @@
 import os
 import sys
 import struct
-# import pandas as pd
 
 from scapy.all import sniff, sendp, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
@@ -30,8 +29,8 @@ class SwitchTrace(Packet):
                   IntField("qdepth", 0),
                   IntField("qlatency", 0),
                   IntField("plength", 0)]
-#    def extract_padding(self, p):
-#                return "", p
+    def extract_padding(self, p):
+                return "", p
 
 class MRI(Packet):
    fields_desc = [ ShortField("count", 0),
@@ -40,31 +39,15 @@ class MRI(Packet):
                                    SwitchTrace,
                                    count_from=lambda pkt:(pkt.count*1))]
 
-
-#def record_int(pkt):
-#    file_name = "int_data.csv"    
-#    df = pd.DataFrame()
-#    for i in range(len(pkt.options[0].swtraces)):
-#        swid = str(pkt.options[0].swtraces[i].swid)
-#        df[swid] = [pkt.options[0].swtraces[i].qlatency]
-#
-#    if os.path.exists(file_name):
-#        df_exist = pd.read_csv(file_name)
-#        df = pd.concat([df_exist, df])
-#
-#    df.to_csv (file_name, index = None, header=True)
-
-
 def handle_pkt(pkt):
     print "got a packet"
-    print pkt.count
     pkt.show2()
-    #record_int(pkt)
     sys.stdout.flush()
 
 class SourceRoute(Packet):
    fields_desc = [ BitField("bos", 0, 1),
                    BitField("port", 0, 15)]
+
 #class SourceRoutingTail(Packet):
 #   fields_desc = [ XShortField("etherType", 0x800)]
 

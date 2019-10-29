@@ -209,6 +209,9 @@ control MyEgress(inout headers hdr,
         hdr.swtraces[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
         hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
+        
+        hdr.udp.length_ = hdr.udp.length_+16;
+        hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
     }
 
     table swtrace {
