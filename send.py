@@ -58,7 +58,6 @@ def main():
     if len(sys.argv)<3:
         print 'pass 2 arguments: "<message>"'
         exit(1)
-
     addr = socket.gethostbyname(sys.argv[1])
     iface = get_if()
 

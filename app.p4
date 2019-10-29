@@ -201,33 +201,25 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    // action add_swtrace(switchID_t swid) { 
-    action add_swtrace() { 
+    action add_swtrace(switchID_t swid) { 
         hdr.mri.count = hdr.mri.count + 1;
         hdr.swtraces.push_front(1);
         hdr.swtraces[0].setValid();
-        // hdr.swtraces[0].swid = swid;
-        // you need *table entries* for you to pass swid into this action
-        hdr.swtraces[0].swid = 0x1234; 
+        hdr.swtraces[0].swid = swid;
         hdr.swtraces[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
         hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
-
-        // no longer needed, as you are not using the ip options
-        // hdr.ipv4.ihl = hdr.ipv4.ihl + 4;
-	    // hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
     }
 
-    // table swtrace {
-    //     actions = { 
-	//         add_swtrace; 
-    //     }      
-    // }
+    table swtrace {
+        actions = { 
+            add_swtrace; 
+        }      
+    }
     
     apply {
         if (hdr.mri.isValid()) {
-            // swtrace.apply();
-            add_swtrace();
+            swtrace.apply();
         }
     }
 }
