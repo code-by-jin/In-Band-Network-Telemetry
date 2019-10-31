@@ -215,9 +215,12 @@ control MyEgress(inout headers hdr,
     }
 
     table swtrace {
+        key = {
+            hdr.ipv4.version : exact;
+        }
         actions = { 
             add_swtrace; 
-        }      
+        }
     }
     
     apply {
@@ -225,6 +228,8 @@ control MyEgress(inout headers hdr,
             swtrace.apply();
         }
     }
+    // table_add swtrace MyEgress.add_swtrace 0x4 => 1
+    // table_add swtrace MyEgress.add_swtrace 0x4 => 2p
 }
 
 /*************************************************************************
