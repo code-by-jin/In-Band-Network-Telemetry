@@ -5,7 +5,7 @@ import sys
 import socket
 import random
 import struct
-# import pandas as pd
+
 from scapy.all import sendp, send, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
 from scapy.all import Ether, IP, UDP
@@ -29,9 +29,9 @@ def get_if():
 
 class SwitchTrace(Packet):
     fields_desc = [ IntField("swid", 0),
-                  IntField("qdepth", 0),
-                  IntField("qlatency", 0),
-                  IntField("plength", 0)]
+                    IntField("qdepth", 0),
+                    IntField("qlatency", 0),
+                    IntField("plength", 0)]
     def extract_padding(self, p):
                 return "", p
 
@@ -49,7 +49,6 @@ class SourceRoute(Packet):
 bind_layers(Ether, SourceRoute, type=0x1234)
 bind_layers(SourceRoute, SourceRoute, bos=0)
 bind_layers(SourceRoute, IP, bos=1)
-# bind_layers(IP, MRI)
 bind_layers(IP, UDP)
 bind_layers(UDP, MRI)
 
@@ -63,7 +62,6 @@ def main():
     iface = get_if()
 
     while True:
-        #df = pd.read_csv('int_data.csv')
         print
         s = str(raw_input('Type space separated port nums '
                           '(example: "2 3 1") or "q" to quit: '))
@@ -81,8 +79,8 @@ def main():
                 pass
         if pkt.haslayer(SourceRoute):
             pkt.getlayer(SourceRoute, i).bos = 1
-        pkt.show2()
-        pkt = pkt / IP(dst=addr, proto=17) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / sys.argv[2]
+
+        pkt = pkt / IP(dst=addr, proto=0x11) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / sys.argv[2]
 
         pkt.show2()
         sendp(pkt, iface=iface, verbose=False)
