@@ -4,7 +4,8 @@
 
 const bit<8>  UDP_PROTOCOL = 0x11;
 const bit<16> TYPE_IPV4 = 0x800;
-const bit<5>  IPV4_OPTION_MRI = 31;
+const bit<16> TYPE_SRCROUTING = 0x1234;
+
 
 #define MAX_HOPS 9
 
@@ -22,6 +23,11 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+}
+
+header srcRoute_t {
+    bit<1>    bos;
+    bit<15>   port;
 }
 
 header ipv4_t {
@@ -70,6 +76,7 @@ struct metadata {
 
 struct headers {
     ethernet_t         ethernet;
+    srcRoute_t[MAX_HOPS] srcRoutes;
     ipv4_t             ipv4;
     udp_t              udp;
     mri_t              mri;
@@ -94,8 +101,17 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
+            TYPE_SRCROUTING: parse_srcRouting;
             TYPE_IPV4: parse_ipv4;
             default: accept;
+        }
+    }
+
+    state parse_srcRouting {
+        packet.extract(hdr.srcRoutes.next);
+        transition select(hdr.srcRoutes.last.bos) {
+            1: parse_ipv4;
+            default: parse_srcRouting;
         }
     }
 
@@ -151,6 +167,19 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop(standard_metadata);
     }
+
+    action srcRoute_nhop() {
+        standard_metadata.egress_spec = (bit<9>)hdr.srcRoutes[0].port;
+        hdr.srcRoutes.pop_front(1);
+    }
+
+    action srcRoute_finish() {
+        hdr.ethernet.etherType = TYPE_IPV4;
+    }
+
+    action update_ttl(){
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+    } 
     
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
@@ -173,8 +202,18 @@ control MyIngress(inout headers hdr,
     }
     
     apply {
-        if (hdr.ipv4.isValid()) {
+        if (hdr.ipv4.isValid() && !hdr.srcRoutes[0].isValid()) {
             ipv4_lpm.apply();
+        }
+        
+        if (hdr.srcRoutes[0].isValid()){
+            if (hdr.srcRoutes[0].bos == 1){
+                srcRoute_finish();
+            }
+            srcRoute_nhop();
+            if (hdr.ipv4.isValid()){
+                update_ttl();
+            }
         }
     }
 }
@@ -247,6 +286,7 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.srcRoutes);     
         packet.emit(hdr.ipv4);
         packet.emit(hdr.udp);
         packet.emit(hdr.mri);
