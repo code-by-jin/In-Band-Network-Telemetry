@@ -7,7 +7,7 @@ from time import sleep
 # Import P4Runtime lib from parent utils dir
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 '../../utils/'))
+                 '../../../utils/'))
 import p4runtime_lib.bmv2
 from p4runtime_lib.switch import ShutdownAllSwitchConnections
 import p4runtime_lib.helper
@@ -83,17 +83,17 @@ def main(p4info_file_path, bmv2_file_path):
             name='s1',
             address='127.0.0.1:50051',
             device_id=0,
-            proto_dump_file='logs/s1-p4runtime-requests.txt')
+            proto_dump_file='../logs/s1-p4runtime-requests.txt')
         s2 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s2',
             address='127.0.0.1:50052',
             device_id=1,
-            proto_dump_file='logs/s2-p4runtime-requests.txt')
+            proto_dump_file='../logs/s2-p4runtime-requests.txt')
         s3 = p4runtime_lib.bmv2.Bmv2SwitchConnection(
             name='s3',
             address='127.0.0.1:50053',
             device_id=2,
-            proto_dump_file='logs/s3-p4runtime-requests.txt')
+            proto_dump_file='../logs/s3-p4runtime-requests.txt')
 
         s1.MasterArbitrationUpdate()
         s2.MasterArbitrationUpdate()
@@ -140,10 +140,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Controller')
     parser.add_argument('--p4info', help='p4info proto in text format from p4c',
                         type=str, action="store", required=False,
-                        default='./build/app.p4.p4info.txt')
+                        default='../build/app.p4.p4info.txt')
     parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
                         type=str, action="store", required=False,
-                        default='./build/app.json')
+                        default='../build/app.json')
     args = parser.parse_args()
 
     if not os.path.exists(args.p4info):
