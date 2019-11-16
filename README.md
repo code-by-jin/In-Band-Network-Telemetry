@@ -1,13 +1,15 @@
-# SR-P4
-The objective of this repository is to implement Source Routing and In-Band Network Telemetry. Sepcifically, the host guides each switch in the network to send the packet to a specific port and track the status of the switch that every packet travels through.  
-
+# SR-P4  
+The objective of this repository is to implement In-Band Network Telemetry. Once the end host receive the packet, it will deparse the packet and send the INT information back to the sender. The sender can adjust flow rate based on the INT information. 
 
 # Requirement
-The program can be executed in the same path as https://github.com/p4lang/tutorials/tree/master/exercises/source_routing. 
+The program can be executed in the same path as https://github.com/p4lang/tutorials/tree/master/exercises/source\_routing. 
 
-1.After compiling p4 file, in another terminal, run ```cd ring-topo``` and then run ```python controller.py```;
+1.After compiling p4 file, in another terminal, run ```cd triangle-topo``` and then run ```python controller.py```;
 
-2.The only difference is that In h1's xterm, to send a message from the client, run ```./send.py 10.0.2.2 "P4 is good"```.
+2.In h2's terminal, run ```python receive.py``` 
+
+3.In h1's terminal, run ```python send.py 10.0.2.2 100``` to send 100 packets to h2
+
 
 # Acknowledgement
 Thanks for the help from the P4 community, especially from Tu Dang and Xin Zhe.

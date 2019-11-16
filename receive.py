@@ -6,7 +6,7 @@ import struct
 from scapy.all import sniff, sendp, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
 from scapy.all import PacketListField, ShortField, IntField, LongField, BitField, FieldListField, FieldLenField
-from scapy.all import Ether, IP, UDP, Raw
+from scapy.all import Ether, IP, UDP, TCP, Raw
 from scapy.layers.inet import _IPOption_HDR
 from scapy.fields import *
 import logging
@@ -39,29 +39,30 @@ class MRI(Packet):
                                    SwitchTrace,
                                    count_from=lambda pkt:(pkt.count*1))]
 
+bind_layers(TCP, MRI)
+bind_layers(UDP, MRI)
+
+def send_ack(pkt):
+    iface = get_if()
+
+    ack = Ether(src=get_if_hwaddr(iface), dst="ff:ff:ff:ff:ff:ff")
+
+    ack = ack / IP(dst=pkt[IP].src, proto=17) / UDP(dport=4322, sport=1235) / MRI(count=pkt[MRI].count, swtraces=pkt[MRI].swtraces)
+    ack.show2()
+    sendp(ack, iface=iface, verbose=False)
+    print ("ACK sent")    
+
 def handle_pkt(pkt):
     print "got a packet"
     pkt.show2()
     sys.stdout.flush()
-
-class SourceRoute(Packet):
-   fields_desc = [ BitField("bos", 0, 1),
-                   BitField("port", 0, 15)]
-
-#class SourceRoutingTail(Packet):
-#   fields_desc = [ XShortField("etherType", 0x800)]
-
-bind_layers(Ether, SourceRoute, type=0x1234)
-bind_layers(SourceRoute, SourceRoute, bos=0)
-bind_layers(SourceRoute, IP, bos=1)
-bind_layers(IP, UDP)
-bind_layers(UDP, MRI)
+    send_ack(pkt)
 
 def main():
     iface = 'eth0'
     print "sniffing on %s" % iface
     sys.stdout.flush()
-    sniff(filter="udp and port 4321", iface = iface,
+    sniff(filter="tcp and port 4321", iface = iface,
           prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':

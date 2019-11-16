@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
+from threading import Thread
 import argparse
 import sys
 import socket
 import random
 import struct
 
-from scapy.all import sendp, send, hexdump, get_if_list, get_if_hwaddr, bind_layers
+from scapy.all import sniff, sendp, send, hexdump, get_if_list, get_if_hwaddr, bind_layers
 from scapy.all import Packet, IPOption
-from scapy.all import Ether, IP, UDP
+from scapy.all import Ether, IP, UDP, TCP
 from scapy.all import IntField, FieldListField, FieldLenField, ShortField, PacketListField
 from scapy.layers.inet import _IPOption_HDR
 from scapy.fields import *
@@ -42,48 +43,40 @@ class MRI(Packet):
                                    SwitchTrace,
                                    count_from=lambda pkt:(pkt.count*1))]
 
-class SourceRoute(Packet):
-   fields_desc = [ BitField("bos", 0, 1),
-                   BitField("port", 0, 15)]
-
-bind_layers(Ether, SourceRoute, type=0x1234)
-bind_layers(SourceRoute, SourceRoute, bos=0)
-bind_layers(SourceRoute, IP, bos=1)
-bind_layers(IP, UDP)
+bind_layers(TCP, MRI)
 bind_layers(UDP, MRI)
 
 
-def main():
-
+def send():
     if len(sys.argv)<3:
-        print 'pass 2 arguments: "<message>"'
+        print 'pass 2 arguments: <destination> "<num>"'
         exit(1)
+
     addr = socket.gethostbyname(sys.argv[1])
-    iface = get_if()
+    iface_tx = get_if()
+    pkt = Ether(src=get_if_hwaddr(iface_tx), dst="ff:ff:ff:ff:ff:ff") / IP(dst=addr, proto=0x6) / TCP(dport=4321, sport=random.randint(49152,65535)) / MRI(count=0, swtraces=[]) / str(RandString(size=10))
+    pkt.show2()
+    for i in range(0, int(sys.argv[2])):
+        sendp(pkt, iface=iface_tx, verbose=False)
 
-    while True:
-        print
-        s = str(raw_input('Type space separated port nums '
-                          '(example: "2 3 1") or "q" to quit: '))
-        if s == "q":
-            break;
-        print
-    
-        i = 0
-        pkt = Ether(src=get_if_hwaddr(iface), dst="ff:ff:ff:ff:ff:ff") 
-        for p in s.split(" "):
-            try:
-                pkt = pkt / SourceRoute(bos=0, port=int(p))
-                i = i+1
-            except ValueError:
-                pass
-        if pkt.haslayer(SourceRoute):
-            pkt.getlayer(SourceRoute, i).bos = 1
+dict_mri = {}
 
-        pkt = pkt / IP(dst=addr, proto=0x11) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / sys.argv[2]
+def handle_pkt(ack):
+    print "got a packet"
+    ack.show2()
+    sys.stdout.flush()
+    global dict_mri
+    for i in range(0, len(ack[MRI].swtraces)): 
+        dict_mri[ack[MRI].swtraces[i].swid] = ack[MRI].swtraces[i].qdepth  
+    print dict_mri
 
-        pkt.show2()
-        sendp(pkt, iface=iface, verbose=False)
+def receive():    
+    iface_rx = 'eth0'
+    print "sniffing on %s" % iface_rx
+    sys.stdout.flush()
+    sniff(filter="udp and port 4322", iface = iface_rx,
+          prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':
-    main()
+    Thread(target = send).start()
+    Thread(target = receive).start()
