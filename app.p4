@@ -1,12 +1,7 @@
 #include <core.p4>
 #include <v1model.p4>
 
-// const bit<8>  UDP_PROTOCOL = 0x11;
 const bit<16> TYPE_IPV4 = 0x800;
-// const bit<5>  IPV4_OPTION_MRI = 31;
-const bit<16> TYPE_SRCROUTING = 0x1234;
-
-#define MAX_HOPS 15
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -15,20 +10,11 @@ const bit<16> TYPE_SRCROUTING = 0x1234;
 typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
-typedef bit<32> switchID_t;
-typedef bit<32> qdepth_t;
-typedef bit<32> qlatency_t;
-typedef bit<32> plength_t;
 
 header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
-}
-
-header srcRoute_t {
-    bit<1>    bos;
-    bit<15>   port;
 }
 
 header ipv4_t {
@@ -46,6 +32,7 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+
 header udp_t {
     bit<16> srcPort;
     bit<16> dstPort;
@@ -53,37 +40,20 @@ header udp_t {
     bit<16> checksum;
 }
 
-header mri_t {
-    bit<16>  count;
-}
-
-header switch_t {
-    switchID_t  swid;
-    qdepth_t    qdepth;
-    qlatency_t  qlatency;
-    plength_t   plength;
-}
-
-struct ingress_metadata_t {
-    bit<16>  count;
-}
-
-struct parser_metadata_t {
-    bit<16>  remaining;
+header agri_t {
+    bit<32>   id;
+    bit<64>   pH;
+    bit<64>   temp;
 }
 
 struct metadata {
-    ingress_metadata_t   ingress_metadata;
-    parser_metadata_t   parser_metadata;
 }
 
 struct headers {
     ethernet_t              ethernet;
-    srcRoute_t[MAX_HOPS]    srcRoutes;
     ipv4_t                  ipv4;
+    agri_t                  agri;
     udp_t                   udp;
-    mri_t                   mri;
-    switch_t[MAX_HOPS]      swtraces;
 }
 
 
@@ -103,46 +73,23 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            TYPE_SRCROUTING: parse_srcRouting;
-            default: accept;
-        }
-    }
- 
-    state parse_srcRouting {
-        packet.extract(hdr.srcRoutes.next);
-        transition select(hdr.srcRoutes.last.bos) {
-            1: parse_ipv4;
-            default: parse_srcRouting;
+            default: parse_ipv4;
         }
     }
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_udp;   
-    }
-
-    state parse_udp {
-        packet.extract(hdr.udp);
-        transition parse_mri;
-    }
-
-    state parse_mri {
-        packet.extract(hdr.mri);
-        meta.parser_metadata.remaining = hdr.mri.count;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_swtrace;
+        transition select(hdr.ipv4.protocol) {
+            143     : parse_agri;
+            default : accept;
         }
+    } 
+
+    state parse_agri {
+        packet.extract(hdr.agri);
+        transition accept;
     }
 
-    state parse_swtrace {
-        packet.extract(hdr.swtraces.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_swtrace;
-        }
-    }    
 }
 
 /*************************************************************************
@@ -164,31 +111,58 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop(standard_metadata);
     }
-    
-    action srcRoute_nhop() {
-        standard_metadata.egress_spec = (bit<9>)hdr.srcRoutes[0].port;
-        hdr.srcRoutes.pop_front(1);
-    }
-
-    action srcRoute_finish() {
-        hdr.ethernet.etherType = TYPE_IPV4;
-    }
 
     action update_ttl(){
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     } 
 
+    action ipv4_forward(egressSpec_t egressSpec){
+        standard_metadata.egress_spec = egressSpec;
+    }
+
+    action do_copy(){
+        // clone type, mirror id
+        // add port to mirror id
+        clone(CloneType.I2E, (bit<32>) 32w0);
+    }
+
+    table ipv4_lpm {
+        key = {
+            hdr.ipv4.dstAddr : lpm;
+        }
+        actions = {
+            ipv4_forward;
+            NoAction;
+        }
+        const entries = {
+            0xa000101 : ipv4_forward(1);
+            0xa000102 : ipv4_forward(2);
+        }
+        default_action = NoAction;
+    }
+
+    table agri {
+        key = {
+            hdr.agri.temp : range;
+            hdr.agri.pH : range;
+        }
+        actions = {
+            do_copy;
+        }
+        const entries = {
+            // IEEE 754
+            // how to encode floating point numbers
+            (64w0x3f8 .. 64w0x999 , 64w0x3f8 .. 64w0x999) : do_copy();
+        }
+    }
+
     apply {
-        if (hdr.srcRoutes[0].isValid()){
-            if (hdr.srcRoutes[0].bos == 1){
-                srcRoute_finish();
+        if (hdr.ipv4.isValid()){
+            ipv4_lpm.apply();
+            update_ttl();
+            if (hdr.agri.isValid()) {
+                agri.apply();
             }
-            srcRoute_nhop();
-            if (hdr.ipv4.isValid()){
-                update_ttl();
-            }
-        }else{
-            drop();
         } 
     }
 }
@@ -200,36 +174,7 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-
-    action add_swtrace(switchID_t swid) { 
-        hdr.mri.count = hdr.mri.count + 1;
-        hdr.swtraces.push_front(1);
-        hdr.swtraces[0].setValid();
-        hdr.swtraces[0].swid = swid;
-        hdr.swtraces[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
-        hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
-        hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
-        
-        hdr.udp.length_ = hdr.udp.length_+16;
-        hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
-    }
-
-    table swtrace {
-        key = {
-            hdr.ipv4.version : exact;
-        }
-        actions = { 
-            add_swtrace; 
-        }
-    }
-    
-    apply {
-        if (hdr.mri.isValid()) {
-            swtrace.apply();
-        }
-    }
-    // table_add swtrace MyEgress.add_swtrace 0x4 => 1
-    // table_add swtrace MyEgress.add_swtrace 0x4 => 2p
+     apply { }
 }
 
 /*************************************************************************
@@ -247,11 +192,9 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.srcRoutes);     
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.agri);
         packet.emit(hdr.udp);
-        packet.emit(hdr.mri);
-        packet.emit(hdr.swtraces);     
     }
 }
 
