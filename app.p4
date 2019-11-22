@@ -3,7 +3,6 @@
 #include <v1model.p4>
 
 const bit<8>  UDP_PROTOCOL = 0x11;
-const bit<8>  TCP_PROTOCOL = 0x6;
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<16> TYPE_SRCROUTING = 0x1234;
 const bit<16> TYPE_INT = 0x10E1;
@@ -48,20 +47,6 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header tcp_t {
-    bit<16> srcPort;
-    bit<16> dstPort;
-    bit<32> seqNo;
-    bit<32> ackNo;
-    bit<4>  dataOffset;
-    bit<3>  res;
-    bit<3>  ecn;
-    bit<6>  ctrl;
-    bit<16> window;
-    bit<16> checksum;
-    bit<16> urgentPtr;
-}
-
 header udp_t {
     bit<16> srcPort;
     bit<16> dstPort;
@@ -97,7 +82,6 @@ struct headers {
     ethernet_t           ethernet;
     srcRoute_t[MAX_HOPS] srcRoutes;
     ipv4_t               ipv4;
-    tcp_t                tcp;
     udp_t                udp;
     mri_t                mri;
     switch_t[MAX_HOPS]   swtraces;
@@ -138,15 +122,14 @@ parser MyParser(packet_in packet,
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.protocol) {
-            UDP_PROTOCOL: accept;
-            TCP_PROTOCOL: parse_tcp;
+            UDP_PROTOCOL: parse_udp;
             default: accept;
         }
     }
   
-   state parse_tcp {
-        packet.extract(hdr.tcp);
-        transition select(hdr.tcp.dstPort) {
+   state parse_udp {
+        packet.extract(hdr.udp);
+        transition select(hdr.udp.dstPort) {
             TYPE_INT: parse_mri;      //port 4321
             default: accept;
         }       
@@ -258,7 +241,7 @@ control MyEgress(inout headers hdr,
         hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
 	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
-
+        hdr.udp.length_ =  hdr.udp.length_ + 16;
     }
 
     table swtrace {
@@ -309,7 +292,6 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.srcRoutes);     
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.tcp);
         packet.emit(hdr.udp);
         packet.emit(hdr.mri);
         packet.emit(hdr.swtraces);                 

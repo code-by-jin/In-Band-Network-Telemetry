@@ -39,14 +39,11 @@ class MRI(Packet):
                                    SwitchTrace,
                                    count_from=lambda pkt:(pkt.count*1))]
 
-bind_layers(TCP, MRI)
 bind_layers(UDP, MRI)
 
 def send_ack(pkt):
     iface = get_if()
-
     ack = Ether(src=get_if_hwaddr(iface), dst="ff:ff:ff:ff:ff:ff")
-
     ack = ack / IP(dst=pkt[IP].src, proto=17) / UDP(dport=4322, sport=1235) / MRI(count=pkt[MRI].count, swtraces=pkt[MRI].swtraces)
     ack.show2()
     sendp(ack, iface=iface, verbose=False)
@@ -62,7 +59,7 @@ def main():
     iface = 'eth0'
     print "sniffing on %s" % iface
     sys.stdout.flush()
-    sniff(filter="tcp and port 4321", iface = iface,
+    sniff(filter="udp and port 4321", iface = iface,
           prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from threading import Thread
+from multiprocessing import Process
 import argparse
 import sys
 import socket
@@ -43,32 +43,32 @@ class MRI(Packet):
                                    SwitchTrace,
                                    count_from=lambda pkt:(pkt.count*1))]
 
-bind_layers(TCP, MRI)
 bind_layers(UDP, MRI)
-
 
 def send():
     if len(sys.argv)<3:
         print 'pass 2 arguments: <destination> "<num>"'
         exit(1)
-
     addr = socket.gethostbyname(sys.argv[1])
     iface_tx = get_if()
-    pkt = Ether(src=get_if_hwaddr(iface_tx), dst="ff:ff:ff:ff:ff:ff") / IP(dst=addr, proto=0x6) / TCP(dport=4321, sport=random.randint(49152,65535)) / MRI(count=0, swtraces=[]) / str(RandString(size=10))
+    pkt = Ether(src=get_if_hwaddr(iface_tx), dst="ff:ff:ff:ff:ff:ff") / IP(dst=addr, proto=17) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / str(RandString(size=1000))
     pkt.show2()
+    global window
     for i in range(0, int(sys.argv[2])):
         sendp(pkt, iface=iface_tx, verbose=False)
 
 dict_mri = {}
 
 def handle_pkt(ack):
-    print "got a packet"
+    print "[!] Got New Packet: {src} -> {dst}".format(src=ack[IP].src, dst=ack[IP].dst)
     ack.show2()
     sys.stdout.flush()
     global dict_mri
+    global count
     for i in range(0, len(ack[MRI].swtraces)): 
         dict_mri[ack[MRI].swtraces[i].swid] = ack[MRI].swtraces[i].qdepth  
     print dict_mri
+    
 
 def receive():    
     iface_rx = 'eth0'
@@ -78,5 +78,6 @@ def receive():
           prn = lambda x: handle_pkt(x))
 
 if __name__ == '__main__':
-    Thread(target = send).start()
-    Thread(target = receive).start()
+    
+    Process(target = send).start()
+    Process(target = receive).start()
