@@ -28,7 +28,8 @@ class SwitchTrace(Packet):
     fields_desc = [ IntField("swid", 0),
                   IntField("qdepth", 0),
                   IntField("qlatency", 0),
-                  IntField("plength", 0)]
+                  IntField("plength", 0),
+                  IntField("txtotal", 0)]
     def extract_padding(self, p):
                 return "", p
 

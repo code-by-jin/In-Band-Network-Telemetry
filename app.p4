@@ -20,6 +20,7 @@ typedef bit<32> switchID_t;
 typedef bit<32> qdepth_t;
 typedef bit<32> qlatency_t;
 typedef bit<32> plength_t;
+typedef bit<32> txtotal_t;
 
 header ethernet_t {
     macAddr_t dstAddr;
@@ -63,6 +64,7 @@ header switch_t {
     qdepth_t    qdepth;
     qlatency_t  qlatency;
     plength_t   plength;
+    txtotal_t   txtotal;
 }
 
 struct ingress_metadata_t {
@@ -86,8 +88,6 @@ struct headers {
     mri_t                mri;
     switch_t[MAX_HOPS]   swtraces;
 }
-
-
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -171,6 +171,7 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+    
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -222,6 +223,7 @@ control MyIngress(inout headers hdr,
                 update_ttl();
             }
         }
+
     }
 }
 
@@ -232,6 +234,18 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
+
+    register<bit<32>>(16384) r;  
+   
+    action update_total_tx() {
+        bit<32> last_seen;
+        bit<32> now_seen;
+  
+        r.read(last_seen, (bit<32>)standard_metadata.egress_port);
+        now_seen = last_seen + (bit<32>)standard_metadata.packet_length;
+        r.write((bit<32>)standard_metadata.egress_port, now_seen);
+    }
+
     action add_swtrace(switchID_t swid) { 
         hdr.mri.count = hdr.mri.count + 1;
         hdr.swtraces.push_front(1);
@@ -240,8 +254,13 @@ control MyEgress(inout headers hdr,
         hdr.swtraces[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
         hdr.swtraces[0].qlatency = (qlatency_t)standard_metadata.deq_timedelta;
         hdr.swtraces[0].plength = (plength_t)standard_metadata.packet_length;
-	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 16;
-        hdr.udp.length_ =  hdr.udp.length_ + 16;
+
+        bit<32> now_seen;
+        r.read(now_seen, (bit<32>)standard_metadata.egress_port);
+        hdr.swtraces[0].txtotal = now_seen; 
+ 
+	hdr.ipv4.totalLen = hdr.ipv4.totalLen + 20;
+        hdr.udp.length_ =  hdr.udp.length_ + 20;
     }
 
     table swtrace {
@@ -253,6 +272,7 @@ control MyEgress(inout headers hdr,
     }
     
     apply {
+        update_total_tx();
         if (hdr.mri.isValid()) {
             swtrace.apply();
         }
