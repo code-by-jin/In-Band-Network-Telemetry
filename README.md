@@ -1,5 +1,5 @@
 # SR-P4  
-The objective of this repository is to implement In-Band Network Telemetry. Once the end host receive the packet, it will deparse the packet and send the INT information back to the sender. The sender can adjust flow rate based on the INT information. 
+The objective of this repository is to implement In-Band Network Telemetry. Once the end host receive the packet, it will deparse the packet and send the INT information back to the sender. 
 
 # Requirement
 The program can be executed in the same path as https://github.com/p4lang/tutorials/tree/master/exercises/source\_routing. 
