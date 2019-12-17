@@ -55,7 +55,8 @@ def send():
     pkt = Ether(src=get_if_hwaddr(iface_tx), dst="ff:ff:ff:ff:ff:ff") / IP(dst=addr, proto=17) / UDP(dport=4321, sport=1234) / MRI(count=0, swtraces=[]) / str(RandString(size=1000))
     pkt.show2()
     print ("Send Time: ", time.time())
-    sendp(pkt, iface=iface_tx, count=int(sys.argv[2]), verbose=False)
+    for i in range(0, int(sys.argv[2])):
+        sendp(pkt, iface=iface_tx, count=1, verbose=False)
 
 dict_mri = {}
 
