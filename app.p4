@@ -242,7 +242,7 @@ control MyEgress(inout headers hdr,
         bit<32> now_seen;
   
         r.read(last_seen, (bit<32>)standard_metadata.egress_port);
-        now_seen = last_seen + (bit<32>)standard_metadata.packet_length;
+        now_seen = last_seen + (bit<32>)standard_metadata.packet_length / 4;
         r.write((bit<32>)standard_metadata.egress_port, now_seen);
     }
 
