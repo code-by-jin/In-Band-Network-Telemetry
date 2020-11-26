@@ -2,7 +2,6 @@
 The objective of this repository is to implement In-Band Network Telemetry. Once the end host receive the packet, it will deparse the packet and send the INT information back to the sender. 
 
 # Requirement
-The program can be executed in the same path as https://github.com/p4lang/tutorials/tree/master/exercises/source\_routing. 
 
 1.After compiling p4 file, in another terminal, run ```cd triangle-topo``` and then run ```python controller.py```;
 
