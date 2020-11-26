@@ -1,4 +1,4 @@
-# INT-based-Routing-P4  
+# In-Band Network Telemetry 
 The objective of this repository is to implement In-Band Network Telemetry. Once the end host receive the packet, it will deparse the packet and send the INT information back to the sender. 
 
 ## Requirement
@@ -12,5 +12,3 @@ The objective of this repository is to implement In-Band Network Telemetry. Once
 
 ## Acknowledgement
 Thanks for the help from the P4 community, especially from Tu Dang and Xin Zhe.
-
-
